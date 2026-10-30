@@ -19,8 +19,8 @@ int main()
   std::cin.ignore(); //leftover newline
   
   socketaddr_in server{};
-  server.sin_family{ AF_INET };
-  server.sin_port{ htons(port) };
+  server.sin_family = AF_INET;
+  server.sin_port = htons(port);
   if (inet_pton(AF_INET, ip.c_str(), &server.sin_addr) != 1){
     std::cerr << "Invalid IP address" << '\n';
     return 1;
@@ -31,7 +31,7 @@ int main()
   std::thread receiver([&]() {
     char buff[1024];
     while (true){
-      ssize_t n{ recvfrom(sock, buff, sizeof(buff - 1), 0, nullptr, nullptr) };
+      ssize_t n{ recvfrom(sock, buff, sizeof(buff) - 1, 0, nullptr, nullptr) };
       if (n < 0) {continue};
       buff[n]{ '\0' };
       std::cout << "[server]" << buff << '\n';
@@ -39,5 +39,15 @@ int main()
   });
   receiver.detach();
 
+  std::string hello{ "(client joined)" };
+  sendto(sock, hello.c_str, hello.size(), 0, (sockaddr *)&server, sizeof(server));
 
+  std::cout << "Connected. Type a message and press Enter." << '\n';
+
+  std::string msg{};
+  while (std::getline(std::cin, msg)) {
+    sendto(sock, msg.c_str(), msg.size(), 0, (sockaddr *)&server, sizeof(server));
+  }
+  close(sock);
+  return 0;
 }
