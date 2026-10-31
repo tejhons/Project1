@@ -42,7 +42,51 @@ int main()
     return 1;
   }
 
-  Socket sock{ socket(AF_INET, SOCK_DGRAM, 0) };  //UDP Socket
+  SOCKET sock{ socket(AF_INET, SOCK_DGRAM, 0) };  //UDP Socket
   
   sockaddr_in addr{};
+  addr.sin_family = AF_INET;
+  addr.sin_addr.s_addr = INADDR_ANY;
+  addr.sin_port = 0;  //port zero means OS will choose a free port
+  if (bind(sock, (sockaddr *)&addr, sizeof(addr)) == SOCKET_ERROR) {
+    std::cerr << "bind failed: " << WSAGetLastError() << '\n';
+    return 1;
+  }
+
+  int len{ sizeof(addr) };
+  getsockname(sock, (sockaddr *)&addr, &len);
+  
+  std::cout << "Server running at IP " << getIP() << ", port" << ntohs(addr.sin_port) << '\n';
+  std::cout << "Waiting for the client to send the first message..." << '\n';
+
+  sockaddr_in clientAddr{}; //learned from client's first message
+  std::atomic<bool> haveClient{ false }; 
+
+  std::thread receiver([&]() {
+    char buf[1024];
+    while (true) {
+      sockaddr_in from{};
+      int flen{ sizeof(from) };
+      int n{ recvfrom(sock, buf, sizeof(buf) - 1, 0, (sockaddr *)&from, &flen) };
+      if (n < 0) {continue;}
+      buf[n] = '\0';
+      clientAddr = from;
+      haveClient = true;
+      std::cout << "[client]" << buf << '\n';
+    }
+  });
+  receiver.detach();
+
+  std::string msg{};
+  while (std::getline(std::cin, msg)) {
+    if (!haveClient) {
+      std::cout << "(no client has connected yet)" << '\n';
+      continue;
+    }
+
+    sendto(sock, msg.c_str(), (int)msg.size(), 0, (sockaddr *)&clientAddr, sizeof(clientAddr));
+  }
+  closesocket(sock);
+  WSACleanup();
+  return 0;
 }
